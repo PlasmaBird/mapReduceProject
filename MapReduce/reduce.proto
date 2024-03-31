@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package MapReduce;
+
+// import "google/protobuf/empty.proto";
+
+
+service ReduceService {
+  rpc Reduce (ReduceRequest) returns (ReduceResponse);
+}
+
+message ReduceRequest {
+  string input_file = 1;
+  string output_file = 2;
+}
+
+message ReduceResponse {
+  string message = 1;
+  bool status = 2;
+}
