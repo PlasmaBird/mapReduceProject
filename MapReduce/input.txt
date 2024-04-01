@@ -1,5 +1,5 @@
 # Step 2 & 3: The dictionary automatically handles sorting by key (word) and reduction
     # If explicit sorting is needed (e.g., for a large file that doesn't fit in memory),
-    # you would sort the file externally or use more complex streaming algorithms.
+    # you you would sort the file externally or use more complex streaming algorithms.
 
     # Writing the reduced word counts to a new output file
