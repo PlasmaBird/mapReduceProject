@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+import time
+from pymongo.mongo_client import MongoClient
 import re
 import mapper_pb2
 import mapper_pb2_grpc
@@ -8,8 +9,15 @@ import reduce_pb2_grpc
 import grpc
 import threading
 from concurrent import futures
+import subprocess
+
 
 REDUCER_ADDRESS = "localhost:50052"
+MONGO_URI = "mongodb+srv://admin4459:admin4459@cluster0.qpwu0ez.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = None
+db = None
+collection = None
+initialization_lock = threading.Lock()
 
 class Mapper(mapper_pb2_grpc.MapperServiceServicer):
     def __init__(self):
@@ -36,14 +44,31 @@ class Mapper(mapper_pb2_grpc.MapperServiceServicer):
             # Call the reducer to reduce the mapped output and check for any errors
             reducerResponse = self.reduceStub.Reduce(reduce_pb2.ReduceRequest(input_file=tempOutputFile, output_file=output_file))
             if reducerResponse.status:
-                return mapper_pb2.MapResponse(message="Success", status=True)
+                if insertFileInMongoDB(input_file):
+                    return mapper_pb2.MapResponse(message="Success", status=True)
+                else:
+                    return mapper_pb2.MapResponse(message="Failed to store the file in MongoDB", status=False)
             else:
                 return mapper_pb2.MapResponse(message=reducerResponse.message, status=False)
         except Exception as e:
             return mapper_pb2.MapResponse(message=str(e), status=False)
 
-def initialize():
-    #INFO - can get comment out the next 2 lines if you don't want to delete the file
+def initialize_db():
+    with initialization_lock:
+        global client, db, collection
+        try:
+            print("in mapper initialize")
+            client = MongoClient(MONGO_URI)
+            time.sleep(5)
+            db = client['4459']
+            collection = db['INPUT_FILES']
+            client.admin.command('ping')
+
+            print("Successfully connected to MongoDB.")
+        except Exception as e:
+            print(f"Failed to connect to MongoDB: {e}")
+
+def initialize_server():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
     mapper_pb2_grpc.add_MapperServiceServicer_to_server(Mapper(), server)
     server.add_insecure_port('localhost:50051')
@@ -51,8 +76,36 @@ def initialize():
     server.start()
     server.wait_for_termination()
     exit()
-    # Add an indented block of code here
+
+def insertFileInMongoDB(file_to_store):
+
+    subprocess.run(['python', "mongoTest.py", file_to_store, "True"], check=True)
+    print("in mapper")
+    # Connect to MongoDB
+    # client = MongoClient(MONGO_URI)
+    # # Select your database
+    # db = client['4459']
+    # # For text files: Select your collection
+    # collection = db['INPUT_FILES']
+    try:
+        client.admin.command('ping')
+        print("Pinged your deployment. You successfully connected to MongoDB!")
+        with open(file_to_store, 'r') as file:
+            file_content = file.read()
+
+    # Find the highest counter value in the collection
+        last_document = collection.find_one(sort=[("file_id", -1)])  # Sort documents by counter in descending order
+        # If the collection is empty, start the counter at 1; otherwise, increment the counter by 1
+        new_counter = 1 if last_document is None else last_document['file_id'] + 1
+        # Storing the file
+        collection.insert_one({'file_id': new_counter, 'filename': file_to_store, 'file_data': file_content})
+        return True
+    except Exception as e:
+        print(str(e))
+        return False
 
 if __name__ == "__main__":
-    initialize()
+    initialize_db()
+    time.sleep(5)
+    initialize_server()
     # mapper(input_file)
