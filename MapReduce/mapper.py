@@ -9,7 +9,6 @@ import reduce_pb2_grpc
 import grpc
 import threading
 from concurrent import futures
-import subprocess
 
 
 REDUCER_ADDRESS = "localhost:50052"
@@ -57,16 +56,16 @@ def initialize_db():
     with initialization_lock:
         global client, db, collection
         try:
-            print("in mapper initialize")
+            print("in mapper initialize mongoDB")
             client = MongoClient(MONGO_URI)
-            time.sleep(5)
+            time.sleep(2)
             db = client['4459']
             collection = db['INPUT_FILES']
             client.admin.command('ping')
 
             print("Successfully connected to MongoDB.")
         except Exception as e:
-            print(f"Failed to connect to MongoDB: {e}")
+            print(f"Failed to connect to MongoDB: {e}. Please restart the server.")
 
 def initialize_server():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
@@ -78,27 +77,21 @@ def initialize_server():
     exit()
 
 def insertFileInMongoDB(file_to_store):
-
-    subprocess.run(['python', "mongoTest.py", file_to_store, "True"], check=True)
-    print("in mapper")
-    # Connect to MongoDB
-    # client = MongoClient(MONGO_URI)
-    # # Select your database
-    # db = client['4459']
-    # # For text files: Select your collection
-    # collection = db['INPUT_FILES']
     try:
-        client.admin.command('ping')
-        print("Pinged your deployment. You successfully connected to MongoDB!")
         with open(file_to_store, 'r') as file:
             file_content = file.read()
 
-    # Find the highest counter value in the collection
-        last_document = collection.find_one(sort=[("file_id", -1)])  # Sort documents by counter in descending order
+        # Find the highest counter value in the collection
+        last_document = collection.find_one(sort=[("file_id", -1)]) 
+        time.sleep(1) 
+        # Sort documents by counter in descending order
         # If the collection is empty, start the counter at 1; otherwise, increment the counter by 1
         new_counter = 1 if last_document is None else last_document['file_id'] + 1
+        time.sleep(1)
         # Storing the file
         collection.insert_one({'file_id': new_counter, 'filename': file_to_store, 'file_data': file_content})
+        time.sleep(1)
+        print(f"{file_to_store} with file_id {new_counter} inserted successfully")
         return True
     except Exception as e:
         print(str(e))
@@ -106,6 +99,5 @@ def insertFileInMongoDB(file_to_store):
 
 if __name__ == "__main__":
     initialize_db()
-    time.sleep(5)
+    time.sleep(2)
     initialize_server()
-    # mapper(input_file)
