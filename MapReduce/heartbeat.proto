@@ -1,0 +1,20 @@
+// Heartbeat.proto
+syntax = "proto3";
+
+package heartbeat;
+
+// The heartbeat service definition.
+service HeartbeatService {
+  // Sends a heartbeat signal
+  rpc SendHeartbeat (HeartbeatRequest) returns (HeartbeatResponse) {}
+}
+
+// The request message containing the sender's details.
+message HeartbeatRequest {
+  string sender = 1;
+}
+
+// The response message containing the receiver's acknowledgment.
+message HeartbeatResponse {
+  bool acknowledged = 1;
+}
