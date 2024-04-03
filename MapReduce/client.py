@@ -1,34 +1,28 @@
-from concurrent import futures
 import grpc
-import mapper_pb2
-import mapper_pb2_grpc
+import coordinator_pb2  # Assuming you have a proto file for coordinator communication
+import coordinator_pb2_grpc
 
-MAPPER_ADDRESS = "localhost:50051"
+COORDINATOR_ADDRESS = "localhost:50070"  # Address of the coordinator
 
 def run():
-    #INFO - can get comment out the next 2 lines if you don't want to delete the file
     while True:
         try:
-            with grpc.insecure_channel(MAPPER_ADDRESS) as channel:
-                stub = mapper_pb2_grpc.MapperServiceStub(channel)
-                inputFileName = input("Please enter input file name with .txt or 'exit' to quit: ")
-                if inputFileName.lower() == 'exit':
+            with grpc.insecure_channel(COORDINATOR_ADDRESS) as channel:
+                stub = coordinator_pb2_grpc.CoordinatorServiceStub(channel)
+                inputLocation = input("Please enter the location of the input data or 'exit' to quit: ")
+                if inputLocation.lower() == 'exit':
                     break
-                outputFileName = input("Please enter output file name with .txt or 'exit' to quit: ")
-                if outputFileName.lower() == 'exit':
-                    break  
 
-                response = stub.Map(mapper_pb2.MapRequest(input_file=inputFileName, output_file=outputFileName))
+                # Assuming a StartJob method exists in your coordinator service definition
+                response = stub.StartJob(coordinator_pb2.JobRequest(input_location=inputLocation))
                 if response.status:
-                     print(f"MapReduce completed successfully. Output file: {outputFileName}")
+                     print("MapReduce job completed successfully.")
                 else:
                     print(f"An error occurred: {response.message}")
         except grpc.RpcError:
-            print("MapReduce is currently unavailable. Please try again later.")
+            print("Coordinator is currently unavailable. Please try again later.")
         except Exception as e:
             print(f"An error occurred: {e}")
 
-
 if __name__ == '__main__':
     run()
-

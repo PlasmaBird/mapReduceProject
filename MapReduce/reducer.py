@@ -3,83 +3,81 @@
 from collections import defaultdict
 import grpc
 from concurrent import futures
+import json  # Assuming JSON format for data serialization
 import reduce_pb2
 import reduce_pb2_grpc
-import heartbeat_pb2
-import heartbeat_pb2_grpc
-import threading
-import time
+import coordinator_pb2
+import coordinator_pb2_grpc
 import os
+import json
 
-MAPPER_ADDRESS = "localhost:50051"
+def read_config(config_path='config.json'):
+    with open(config_path, 'r') as config_file:
+        config = json.load(config_file)
+    return config
+
+COORDINATOR_ADDRESS = "localhost:50070"  # Assuming the coordinator is running on this address
 
 
-class Heartbeat(heartbeat_pb2_grpc.HeartbeatServiceServicer):
-    def SendHeartbeat(self, request, context):
-        print(f"Heartbeat received from {request.sender}")
-        return heartbeat_pb2.HeartbeatResponse(acknowledged=True)
-    
 class Reduce(reduce_pb2_grpc.ReduceServiceServicer):
-    def __init__(self):
-        self.mapper_heartbeat_channel = grpc.insecure_channel(MAPPER_ADDRESS)
-        self.mapper_heartbeat_stub = heartbeat_pb2_grpc.HeartbeatServiceStub(self.mapper_heartbeat_channel)
+
+    def __init__(self, coordinator_address):
+        # Create a gRPC channel to the coordinator
+        self.coordinator_channel = grpc.insecure_channel(coordinator_address)
+        # Create a stub to communicate with the coordinator
+        self.coordinator_stub = coordinator_pb2_grpc.CoordinatorServiceStub(self.coordinator_channel)
+
 
     def Reduce(self, request, context):
-        input_file = request.input_file
-        output_file = request.output_file
-
-        word_counts = defaultdict(int)
+        # Assuming the incoming data is serialized as a JSON string in request.data
+        # This requires adjusting the ReduceRequest message in your .proto file to include a 'data' field
         try:
-            # Read the output file from the mapper
-            with open(input_file, 'r') as infile:
-                for line in infile:
-                    word, count = line.strip().split('\t')
-                    word_counts[word] += int(count)
-            # The dictionary automatically handles sorting by key (word) and reduction
-            # Writing the reduced word counts to a new output file
-            with open(output_file, 'w') as outfile:
-                for word, count in sorted(word_counts.items()):
-                    outfile.write(f"{word}\t{count}\n")
-            os.remove(input_file)
-            return reduce_pb2.ReduceResponse(message="Success", status=True)
-        except FileNotFoundError:
-            pass
+            # Deserialize the incoming data
+            intermediate_data = json.loads(request.data)
+
+            word_counts = defaultdict(int)
+            for word, counts in intermediate_data.items():
+                # Aggregate counts for each word
+                word_counts[word] = sum(int(count) for count in counts)
+
+            # Generate output data (could be written to a file, returned directly, etc.)
+            # Here, we're assuming the reducer sends back a serialized response
+            output_data = json.dumps(word_counts)
+            # Assuming output data is written to a file, and output_file_path is the path to this file
+            output_file_path = "reducer_output.txt"
+            with open(output_file_path, 'w') as f:
+                f.write(output_data)
+
+            # After writing the output, notify the coordinator of completion
+            self.notify_coordinator_completion(output_file_path)
+
+            return reduce_pb2.ReduceResponse(data=output_data, message="Success", status=True)
         except Exception as e:
             return reduce_pb2.ReduceResponse(message=str(e), status=False)
-        
-    def send_heartbeat_periodically(self):
-        while True:
-            try:
-                response = self.mapper_heartbeat_stub.SendHeartbeat(heartbeat_pb2.HeartbeatRequest(sender="Reducer"))
-                if response.acknowledged:
-                    print("Heartbeat acknowledged by Mapper")
-                else:
-                    print("Heartbeat not acknowledged by Mapper")
-            except Exception as e:
-                print(f"Heartbeat sending failed: {e}")
-            time.sleep(5)  # Adjust the sleep time as needed
+
+    def notify_coordinator_completion(self, output_file_path):
+        # Call the NotifyReducerCompletion method on the coordinator
+        response = self.coordinator_stub.NotifyReducerCompletion(
+            coordinator_pb2.ReducerCompletionNotification(output_file=output_file_path)
+        )
+        print(f"Notification sent to Coordinator: {response.message}")
 
 def initialize():
-    #INFO - can get comment out the next 2 lines if you don't want to delete the file
+    config = read_config()
+    reducer_index = int(os.getenv('REDUCER_INDEX', '0'))  # Default to 0 if not set
+    reducer_address = config['reducers'][reducer_index]  # Use the index to get the right address
+    coordinator_address = config['coordinator']
+
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=3))
-    reducer_instance = Reduce()  # Create an instance of the Reduce class
+    reducer_instance = Reduce(coordinator_address)
     reduce_pb2_grpc.add_ReduceServiceServicer_to_server(reducer_instance, server)
-    heartbeat_pb2_grpc.add_HeartbeatServiceServicer_to_server(Heartbeat(), server)
 
-    server.add_insecure_port('localhost:50052')
-    print("starting reducer server...")
+    server.add_insecure_port(reducer_address)
+    print(f"Starting reducer server on {reducer_address}...")
     server.start()
-
-    # Start the heartbeat thread
-    heartbeat_thread = threading.Thread(target=reducer_instance.send_heartbeat_periodically)
-    heartbeat_thread.daemon = True  # Allows the program to exit even if the thread is running
-    heartbeat_thread.start()
-
     server.wait_for_termination()
-    exit()
 
 
 if __name__ == "__main__":
-    # Expect the input and output file name as a command-line argument
-    # reducer()
     initialize()
