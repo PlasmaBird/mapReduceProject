@@ -2,3 +2,6 @@ echo "foo foo quux labs foo bar quux" | ./mapper.py | sort -k1,1 | ./reducer.py
 
 python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. mapper.proto
 ython -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. reduce.proto
+
+
+mongodb+srv://admin4459:admin4459@cluster0.qpwu0ez.mongodb.net/
