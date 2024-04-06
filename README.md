@@ -100,16 +100,40 @@ def Reduce(self, request, context):
 </details>
 
 5. **Heartbeat Checks**: Throughout the process, heartbeat checks are performed between primary and secondary mappers and reducers to ensure system health and connectivity.
+General Heartbeat class for both mapper and reducer. Returns a heartbeat response with ack = true.
+Inside both the reducer and mapper classes, there is a basic send heartbeat function, that will send a heartbeat to the mapper/reducer every 5 seconds based off of the above heartbeat class. 
+During initialization, an instance of the mapper/reducer will be started, and a separate thread running the heartbeat will also start.
 
-**add heartbeat code snip here**
 
-**add mongoDB related workflow here with some examples/codeSnip**
+
 
 ## Logic Behind Design Choices
+**Hadoop vs gRPCs:** Originally, we wanted to create a custom map-reduce that would run in Hadoop using rpcs. Unfortunately, the process of setting up Hadoop to work with python libraries instead of java, overriding their built-in map-reduce, and trying to override their existing framework significantly increased the complexity of the project. Additionally, we wanted to try and highlight topics that had been covered during this course, so Hadoop was not implemented as a result.
+
+**MongoDB:** While we could have implemented our own pseudo-databases with primary/secondaries, we decided to use a publicly available database instead. Considering that DynamoDB was discussed in class, we looked into similar types of no-sql databases that would be suitable for flexible data schemas. Mongo was selected due to its ease of implementation with a small project like this. It utilizes eventual consistency, which is suitable for our map-reduce.
+
+**MapReduce for Distributed Processing:** Utilizing MapReduce allows for efficient processing of large datasets by dividing tasks into smaller sub-tasks, enhancing both speed and efficiency.
+
+**Heartbeat Health Checks:** Implementing heartbeat checks ensures continuous monitoring of system health and connectivity between services, adding to the fault tolerance for the distributed system.
+
+**Python for Development:** Python's simplicity and vast ecosystem of libraries, including support for gRPC and MongoDB, make it a good choice for developing the project components, however, it also means giving up native support  from Apache Hadoop. 
+
+**Modular Design:** Structuring the project into distinct client, mapper, and reducer components, along with clear proto file definitions, fosters modularity and clarity, allowing for easier testing, debugging, and scalability.
+
+These design choices collectively aim to create a robust, scalable, and efficient system for distributed data processing and take into account practical considerations in implementing MapReduce workflows.
 
 ## Challenges
 
+**Hadoop:** There were significant challenges with setting up Hadoop where it would be usable on a windows environment. Hadoop was initially designed for unix and many of the setup functions were not compatible with windows. Hadoop Distributed File System (hdfs) has a critical bug with starting namenodes, and custom hadoop.jar file fixes were found online to try and solve this issue. Another issue was that Hadoop could not use its resource manager (YARN) in conjunction with npm yarn due to similar names. One of the two was needed to be either removed or renamed in order for Hadoop to function properly. In the end, it was decided that Hadoop would be dropped in favor of implementing topics discussed in class such as grpc, heartbeats, and logging.
+
 ## Testing
+Blackbox testing with demos
+and automated testing from unittest library.
+
+`mapperUnitTestHeartbeat.py`
+`mapperUnitTestInit.py`
+`mappUnitTestMapping.py`
+`reducerUnitTest.py`
 
 ## Contributing
 
