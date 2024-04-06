@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package MapReduce;
+
+// The request message containing the information needed to start a MapReduce job.
+message JobRequest {
+  // The location or identifier of the input data for the MapReduce job.
+  string input_location = 1;
+  // You can add more fields as needed, for example, specifying the output location, job configuration options, etc.
+}
+
+// The response message containing the result of a job start request.
+message JobResponse {
+  // A message detailing the outcome of the request, e.g., confirmation of job start, error message, etc.
+  string message = 1;
+  // A boolean status indicating whether the job was successfully started.
+  bool status = 2;
+  // A unique identifier for the job, which can be used for querying the job status.
+  string job_id = 3;
+}
+
+// The request message for checking the status of a job.
+message JobStatusRequest {
+  // The unique identifier of the job whose status is being requested.
+  string job_id = 1;
+}
+
+// The response message containing the status of a job.
+message JobStatusResponse {
+  // The current status of the job, e.g., "Running", "Completed", "Failed", etc.
+  string status = 1;
+  // An optional message providing more details about the job status, e.g., error messages in case of failure.
+  string message = 2;
+}
+
+
+message MapperCompletionNotification {
+  string input_file = 1;
+  string output_file = 2;
+}
+
+message ReducerCompletionNotification {
+  string output_file = 1;  // Location of the reducer's output file
+}
+
+message NotificationResponse {
+  string message = 1;
+}
+
+
+// The Coordinator service definition.
+service CoordinatorService {
+  // Starts a new MapReduce job with the given input.
+  rpc StartJob (JobRequest) returns (JobResponse);
+
+  // Checks the status of a MapReduce job.
+  rpc CheckJobStatus (JobStatusRequest) returns (JobStatusResponse);
+
+  // Notifies of mapper completion
+  rpc NotifyMapperCompletion(MapperCompletionNotification) returns (NotificationResponse);
+
+  // RPC method for reducer completion notifications
+  rpc NotifyReducerCompletion(ReducerCompletionNotification) returns (NotificationResponse);
+
+}
+
